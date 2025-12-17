@@ -5,10 +5,15 @@ It allows users to encrypt and decrypt files using RSA with pre-defined keys. Th
 
 **Features**
 1.Encrypts files using RSA algorithm (C = M^e mod n)
+
 2.Decrypts files (M = C^d mod n)
+
 3.Handles file input/output efficiently
+
 4.Interactive console menu to select encryption or decryption
+
 5.Outputs encrypted/decrypted data to output.txt
+
 6.Modular design using procedures for RSA exponentiation, file handling, and console I/O
 
 **Keys Used**
@@ -26,17 +31,25 @@ Note: Keys are hard-coded for demonstration; can be extended to use dynamic key 
 **How to Run**
 
 Assemble the code in MASM/Visual Studio.
+
 Open command prompt and navigate to the compiled .exe.
+
 Run the program with the input file as a command-line argumen
+
 Select mode:
 1.Press 1 to Encrypt
+
 2. Press 2 to Decrypt
+   
 Encrypted/decrypted output will be saved to output.txt.
 
 **Code Structure**
 1.Main Procedure: Handles file reading, menu, encryption/decryption flow
+
 2.ModExp Procedure: Performs modular exponentiation (Base^Exp mod n)
+
 3.File Handling Procedures: Open, read, write, close files
+
 4.Console I/O Procedures: Display messages and read user input
 
 **Output Sample**
