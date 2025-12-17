@@ -1,0 +1,196 @@
+TITLE RSA File Encryption/Decryption
+
+INCLUDE Irvine32.inc
+
+.data
+    ; --- RSA Keys (n=3233, e=17, d=2753) ---
+    rsa_n   DWORD 3233
+    rsa_e   DWORD 17
+    rsa_d   DWORD 2753
+
+    ; --- File Handling ---
+    cmdTail     BYTE 128 DUP(0)
+    inFile      BYTE 128 DUP(0)
+    outName     BYTE "output.txt",0
+    
+    bufSize     = 5000
+    inBuffer    BYTE bufSize DUP(0)
+    outBuffer   BYTE bufSize DUP(0)
+    bytesRead   DWORD ?
+    fileHandle  DWORD ?          ; Variable to store file handle
+
+    ; --- Messages ---
+    msgMode     BYTE "Select Mode: (1) Encrypt, (2) Decrypt: ",0
+    msgDone     BYTE "Saved to output.txt",0
+    msgErr      BYTE "Error opening file.",0
+
+.code
+main PROC
+    ; 1. Get Filename from Command Line
+    mov  edx, OFFSET cmdTail
+    call GetCommandTail
+    cmp  byte ptr [cmdTail], 0
+    je   FileError
+
+    ; Remove leading spaces
+    mov  esi, OFFSET cmdTail
+    mov  edi, OFFSET inFile
+SkipSpace:
+    mov  al, [esi]
+    cmp  al, 20h
+    jne  CopyName
+    inc  esi
+    jmp  SkipSpace
+CopyName:
+    mov  al, [esi]
+    mov  [edi], al
+    inc  esi
+    inc  edi
+    cmp  al, 0
+    jne  CopyName
+
+    ; 2. Open and Read Input File
+    mov  edx, OFFSET inFile
+    call OpenInputFile
+    cmp  eax, INVALID_HANDLE_VALUE
+    je   FileError
+    
+    mov  fileHandle, eax     ; <--- SAVE HANDLE HERE
+    
+    mov  edx, OFFSET inBuffer
+    mov  ecx, bufSize
+    call ReadFromFile        ; <--- FIXED FUNCTION NAME
+    mov  bytesRead, eax      ; Save count of bytes read
+    
+    mov  eax, fileHandle     ; <--- RESTORE HANDLE
+    call CloseFile
+
+    ; 3. Select Mode
+    mov  edx, OFFSET msgMode
+    call WriteString
+    call ReadChar
+    call Crlf
+
+    cmp  al, '1'
+    je   DoEncrypt
+    cmp  al, '2'
+    je   DoDecrypt
+    jmp  Quit
+
+    ; --- ENCRYPTION (Byte -> Word) ---
+DoEncrypt:
+    mov  ecx, bytesRead
+    mov  esi, OFFSET inBuffer
+    mov  edi, OFFSET outBuffer
+    
+EncLoop:
+    movzx eax, byte ptr [esi]
+    push  ecx
+    
+    ; RSA: C = M^e mod n
+    mov  ebx, rsa_e
+    mov  ecx, rsa_n
+    call ModExp
+    
+    pop  ecx
+    
+    mov  word ptr [edi], ax  ; Store 2 bytes
+    inc  esi
+    add  edi, 2
+    loop EncLoop
+
+    ; Update size: size * 2
+    mov  eax, bytesRead
+    shl  eax, 1
+    mov  bytesRead, eax
+    jmp  WriteOut
+
+    ; --- DECRYPTION (Word -> Byte) ---
+DoDecrypt:
+    mov  ecx, bytesRead
+    shr  ecx, 1              ; Loop = size / 2
+    mov  esi, OFFSET inBuffer
+    mov  edi, OFFSET outBuffer
+
+DecLoop:
+    movzx eax, word ptr [esi]
+    push  ecx
+    
+    ; RSA: M = C^d mod n
+    mov  ebx, rsa_d
+    mov  ecx, rsa_n
+    call ModExp
+    
+    pop  ecx
+    
+    mov  byte ptr [edi], al  ; Store 1 byte
+    add  esi, 2
+    inc  edi
+    loop DecLoop
+
+    ; Update size: size / 2
+    mov  eax, bytesRead
+    shr  eax, 1
+    mov  bytesRead, eax
+
+    ; --- SAVE OUTPUT ---
+WriteOut:
+    mov  edx, OFFSET outName
+    call CreateOutputFile
+    mov  fileHandle, eax     ; Save handle
+    
+    mov  edx, OFFSET outBuffer
+    mov  ecx, bytesRead
+    call WriteToFile
+    
+    mov  eax, fileHandle     ; Restore handle
+    call CloseFile
+    
+    mov  edx, OFFSET msgDone
+    call WriteString
+    call Crlf
+    jmp  Quit
+
+FileError:
+    mov  edx, OFFSET msgErr
+    call WriteString
+    call Crlf
+
+Quit:
+    exit
+main ENDP
+
+; ---------------------------------------------------------
+; ModExp: (Base^Exp) % Mod
+; ---------------------------------------------------------
+ModExp PROC USES edx esi ebx
+    mov  esi, eax        ; Base
+    mov  eax, 1          ; Result = 1
+
+L_Exp:
+    cmp  ebx, 0
+    je   L_Done
+    
+    test ebx, 1          ; If odd
+    jz   L_Even
+    
+    mul  esi             ; Result * Base
+    div  ecx             ; % Mod
+    mov  eax, edx
+
+L_Even:
+    push eax
+    mov  eax, esi
+    mul  esi             ; Base * Base
+    div  ecx             ; % Mod
+    mov  esi, edx
+    pop  eax
+    
+    shr  ebx, 1
+    jmp  L_Exp
+
+L_Done:
+    ret
+ModExp ENDP
+
+END main
